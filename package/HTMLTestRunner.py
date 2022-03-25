@@ -55,6 +55,7 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 __author__ = "Wai Yip Tung,  Findyou,  boafantasy,  Gelomen"
 __version__ = "1.2.0"
 
+from functools import cmp_to_key
 
 """
 Change History
@@ -134,6 +135,7 @@ from xml.sax import saxutils
 import sys
 import os
 import re
+import random
 
 
 # 全局变量      -- Gelomen
@@ -237,7 +239,7 @@ class Template_mixin(object):
     }
 
     DEFAULT_TITLE = '测试报告'
-    DEFAULT_DESCRIPTION = ''
+    DEFAULT_DESCRIPTION = '环境：windows 10 浏览器：chrome'
     DEFAULT_TESTER = 'QA'
 
     # ------------------------------------------------------------------------
@@ -381,12 +383,7 @@ class Template_mixin(object):
                 name: '比例',
                 data: [
                     ['通过', %(Pass)s],
-                    {
-                        name: '失败',
-                        y: %(fail)s,
-                        sliced: true,
-                        selected: true
-                    },
+                    ['失败', %(fail)s],
                     ['错误', %(error)s]
                 ]
             }]
@@ -839,6 +836,9 @@ class _TestResult(TestResult):
             sys.stderr.write('\n')
         else:
             sys.stderr.write('  通过  ')
+            import re
+            b = re.findall("正在执行用例 ->(.+?) ",str(self.result))
+            sys.stderr.write(b[-1])
             sys.stderr.write('\n')
 
     def addError(self, test, err):
@@ -852,12 +852,16 @@ class _TestResult(TestResult):
             sys.stderr.write('  错误  ')
             sys.stderr.write(str(test))
             sys.stderr.write('\n')
+            self.errorCase += "<li>" + str(test) + "</li>"
         else:
             sys.stderr.write('  错误  ')
+            import re
+            b = re.findall("正在执行用例 ->(.+?) ", str(self.result))
+            sys.stderr.write(b[-1])
             sys.stderr.write('\n')
-
+            self.errorCase += "<li>" + str(b[-1]) + "</li>"
         # 添加收集错误用例名字 -- Gelomen
-        self.errorCase += "<li>" + str(test) + "</li>"
+        # self.errorCase += "<li>" + str(test) + "</li>"
 
     def addFailure(self, test, err):
         self.failure_count += 1
@@ -870,12 +874,16 @@ class _TestResult(TestResult):
             sys.stderr.write('  失败  ')
             sys.stderr.write(str(test))
             sys.stderr.write('\n')
+            self.errorCase += "<li>" + str(test) + "</li>"
         else:
             sys.stderr.write('  失败  ')
+            import re
+            b = re.findall("正在执行用例 ->(.+?) ", str(self.result))
+            sys.stderr.write(b[-1])
             sys.stderr.write('\n')
-
+            self.failCase += "<li>" + str(b[-1]) + "</li>"
         # 添加收集失败用例名字 -- Gelomen
-        self.failCase += "<li>" + str(test) + "</li>"
+        # self.failCase += "<li>" + str(test) + "</li>"
 
 
 # 新增 need_screenshot 参数，-1为无需截图，否则需要截图  -- Gelomen
@@ -883,7 +891,7 @@ class HTMLTestRunner(Template_mixin):
     """
     """
 
-    def __init__(self, stream=sys.stdout, verbosity=2, title=None, description=None, tester=None):
+    def __init__(self, stream=sys.stdout, verbosity=1, title=None, description=None, tester=None):
         self.need_screenshot = 0
         self.stream = stream
         self.verbosity = verbosity
@@ -901,7 +909,6 @@ class HTMLTestRunner(Template_mixin):
             self.tester = tester
 
         self.startTime = datetime.datetime.now()
-
     def run(self, test):
         "Run the given test case or test suite."
         result = _TestResult(self.verbosity)  # verbosity为1,只输出成功与否，为2会输出用例名称
@@ -911,6 +918,14 @@ class HTMLTestRunner(Template_mixin):
         # 优化测试结束后打印蓝色提示文字 -- Gelomen
         print("\n\033[36;0m--------------------- 测试结束 ---------------------\n"
               "------------- 合计耗时: %s -------------\033[0m" % (self.stopTime - self.startTime), file=sys.stderr)
+        return result
+
+    def runthread(self, test):
+        "Run the given test case or test suite."
+        result = _TestResult(self.verbosity)  # verbosity为1,只输出成功与否，为2会输出用例名称
+        test(result)
+        self.stopTime = datetime.datetime.now()
+        self.generateReport(test, result)
         return result
 
     def sortResult(self, result_list):
@@ -951,7 +966,6 @@ class HTMLTestRunner(Template_mixin):
                 self.passrate = "0.00 %"
         else:
             status = 'none'
-
         if len(result.failCase) > 0:
             failCase = result.failCase
         else:
@@ -1069,7 +1083,6 @@ class HTMLTestRunner(Template_mixin):
                 name = "%s.%s" % (cls.__module__, cls.__name__)
             doc = cls.__doc__ and cls.__doc__.split("\n")[0] or ""
             # desc = doc and '%s - %s' % (name, doc) or name
-
             row = self.REPORT_CLASS_TMPL % dict(
                 style=ne > 0 and 'errorClass' or nf > 0 and 'failClass' or 'passClass',
                 name=name,
@@ -1095,7 +1108,6 @@ class HTMLTestRunner(Template_mixin):
             time_usage=str(sum_ns) + "秒",  # 所有用例耗时
             passrate=self.passrate,
         )
-
         # 获取 通过、失败 和 错误 的统计并return，以用于饼图  -- Gelomen
         Pass = str(result.success_count)
         fail = str(result.failure_count)
@@ -1115,6 +1127,16 @@ class HTMLTestRunner(Template_mixin):
         tid = tid_flag + 't%s_%s' % (cid + 1, tid + 1)
         name = t.id().split('.')[-1]
         doc = t.shortDescription() or ""
+        if self.verbosity == 1:
+            """自定义注释格式"""
+            if 'ID' in doc:  # 根据自己注释样式，来判断哪些是可以用来转换为dict
+                import json
+                import re
+                doc1 = doc.split(", 'url")[0].strip()+"}"
+                doc = re.sub('\'', '\"', doc1)  # 将ddt参数化文件中的单引号全部改为双引号
+                doc = json.loads(doc)  # 将json类型的转化为dict
+                name = doc['ID']
+                doc = doc['UseCase']  # 根据自己所需拼凑doc
         # desc = doc and ('%s - %s' % (name, doc)) or name
 
         # utf-8 支持中文 - Findyou
@@ -1253,6 +1275,329 @@ class DirAndFiles(object):
         browser_msg = browser_type + "(" + browser_version + ")"
 
         print("errorImg[" + img_name + "]errorImg, browser[" + browser_msg + "]browser")
+
+
+class MergeResult(Template_mixin):
+    def __init__(self, fp, result_list, start_time, end_time):
+        """ 都是复制其他class 方法，用到的数值"""
+        # 文件指针吧
+        self.stream = fp
+        self.result_lst = result_list
+        self.verbosity = 2
+        self.startTime = start_time
+        self.run_times = 0
+        self.stopTime = end_time
+        self.failCase = ''
+        self.errorCase = ''
+        self.totle_count = 0
+        self.pass_count = 0
+        self.fail_count = 0
+        self.error_count = 0
+        self.skip_count = 0
+        self.sum_ns = 0
+        self.rows = []
+
+        self.number = []
+
+    def _generate_heading(self, report_attrs):
+        a_lines = []
+        for name, value in report_attrs:
+            # 如果是 失败用例 或 错误用例合集，则不进行转义 -- Gelomen
+            if name == "失败用例合集":
+                if value == "无":
+                    line = self.HEADING_ATTRIBUTE_TMPL % dict(
+                        name=name,
+                        value="<ol style='float: left;'>" + value + "</ol>",
+                    )
+                else:
+                    line = self.HEADING_ATTRIBUTE_TMPL % dict(
+                        name=name,
+                        value="<div class='panel-default' style='float: left;'><a class='showDetail' data-toggle='collapse' href='#failCaseOl' style='text-decoration: none;'>点击查看</a></div>"
+                              "<ol id='failCaseOl' class='collapse' style='float: left;'>" + value + "</ol>",
+                    )
+            elif name == "错误用例合集":
+                if value == "无":
+                    line = self.HEADING_ATTRIBUTE_TMPL % dict(
+                        name=name,
+                        value="<ol style='float: left;'>" + value + "</ol>",
+                    )
+                else:
+                    line = self.HEADING_ATTRIBUTE_TMPL % dict(
+                        name=name,
+                        value="<div class='panel-default' style='float: left;'><a class='showDetail' data-toggle='collapse' href='#errorCaseOl' style='text-decoration: none;'>点击查看</a></div>"
+                              "<ol id='errorCaseOl' class='collapse' style='float: left;'>" + value + "</ol>",
+                    )
+            else:
+                line = self.HEADING_ATTRIBUTE_TMPL % dict(
+                    name=saxutils.escape(name),
+                    value=saxutils.escape(value),
+                )
+            a_lines.append(line)
+        heading = self.HEADING_TMPL % dict(
+            title=saxutils.escape(self.DEFAULT_TITLE),
+            parameters=''.join(a_lines),
+            description=saxutils.escape(self.DEFAULT_DESCRIPTION),
+            tester=saxutils.escape(self.DEFAULT_TESTER),
+        )
+        return heading
+
+    def _generate_report_test(self, rows, cid, tid, n, t, o, e):
+        # e.g. 'pt1_1', 'ft1_1', 'et1_1'etc
+        has_output = bool(o or e)
+        # ID修改点为下划线,支持Bootstrap折叠展开特效 - Findyou
+        if n == 0:
+            tid_flag = 'p'
+        elif n == 1:
+            tid_flag = 'f'
+        elif n == 2:
+            tid_flag = 'e'
+        tid = tid_flag + 't%s_%s' % (cid , tid + 1)
+        name = t.id().split('.')[-1]
+        doc = t.shortDescription() or ""
+        if self.verbosity == 1:
+            """自定义注释格式"""
+            if 'ID' in doc:  # 根据自己注释样式，来判断哪些是可以用来转换为dict
+                import json
+                import re
+                doc1 = doc.split(", 'url")[0].strip() + "}"
+                doc = re.sub('\'', '\"', doc1)  # 将ddt参数化文件中的单引号全部改为双引号
+                doc = json.loads(doc)  # 将json类型的转化为dict
+                name = doc['ID']
+                doc = doc['UseCase']  # 根据自己所需拼凑doc
+        # desc = doc and ('%s - %s' % (name, doc)) or name
+
+        # utf-8 支持中文 - Findyou
+        # o and e should be byte string because they are collected from stdout and stderr?
+        if isinstance(o, str):
+            # TODO: some problem with 'string_escape': it escape \n and mess up formating
+            # uo = unicode(o.encode('string_escape'))
+            # uo = o.decode('latin-1')
+            uo = o
+        else:
+            uo = o
+        if isinstance(e, str):
+            # TODO: some problem with 'string_escape': it escape \n and mess up formating
+            # ue = unicode(e.encode('string_escape'))
+            # ue = e.decode('latin-1')
+            ue = e
+        else:
+            ue = e
+
+        script = self.REPORT_TEST_OUTPUT_TMPL % dict(
+            id=tid,
+            output=saxutils.escape(uo + ue),
+        )
+
+        # 截图名字通过抛出异常存放在u，通过截取字段获得截图名字  -- Gelomen
+        u = uo + ue
+        # 先判断是否需要截图
+        self.need_screenshot = u.find("errorImg[")
+
+        if self.need_screenshot == -1:
+            tmpl = has_output and self.REPORT_TEST_WITH_OUTPUT_TMPL_0 or self.REPORT_TEST_NO_OUTPUT_TMPL
+
+            row = tmpl % dict(
+                tid=tid,
+                Class=(n == 0 and 'hiddenRow' or 'none'),
+                style=n == 2 and 'errorCase' or (n == 1 and 'failCase' or 'passCase'),
+                name=name,
+                doc=doc,
+                script=script,
+                status=self.STATUS[n],
+            )
+        else:
+            tmpl = has_output and self.REPORT_TEST_WITH_OUTPUT_TMPL_1 or self.REPORT_TEST_NO_OUTPUT_TMPL
+
+            screenshot_list = re.findall("errorImg\[(.*?)\]errorImg", u)
+            screenshot = ""
+            for i in screenshot_list:
+                screenshot += "</br><a class=\"screenshot\" href=\"javascript:void(0)\" img=\"image/" + i + "\">img_" + i + "</a>"
+
+            # screenshot = u[u.find('errorImg[') + 9:u.find(']errorImg')]
+            browser = u[u.find('browser[') + 8:u.find(']browser')]
+
+            row = tmpl % dict(
+                tid=tid,
+                Class=(n == 0 and 'hiddenRow' or 'none'),
+                style=n == 2 and 'errorCase' or (n == 1 and 'failCase' or 'passCase'),
+                name=name,
+                doc=doc,
+                script=script,
+                status=self.STATUS[n],
+                # 添加截图字段
+                screenshot=screenshot,
+                # 添加浏览器版本字段
+                browser=browser
+            )
+        rows.append(row)
+
+        if not has_output:
+            return
+
+    def sortResult(self, result_list):
+        # unittest does not seems to run in any particular order.
+        # Here at least we want to group them together by class.
+        rmap = {}
+        classes = []
+        for n, t, o, e, s in result_list:
+            cls = t.__class__
+            if cls not in rmap:
+                rmap[cls] = []
+                classes.append(cls)
+            rmap[cls].append((n, t, o, e, s))
+        r = [(cls, rmap[cls]) for cls in classes]
+        return r
+
+
+    def init_rows(self, current_result):
+        """返回一个用例行  - list"""
+        # 引用
+        sortedResult = self.sortResult(current_result.result)
+
+
+        for cid, (cls, cls_results) in enumerate(sortedResult):
+            self.number.append(cid+1)
+            # subtotal for a class
+            np = nf = ne = ns = 0
+            for n, t, o, e, s in cls_results:
+                if n == 0:
+                    np += 1
+                elif n == 1:
+                    nf += 1
+                elif n == 2:
+                    ne += 1
+                ns += s  # 把单个class用例文件里面的多个def用例每次的耗时相加
+            ns = round(ns, 2)
+            self.sum_ns += ns  # 把所有用例的每次耗时相加
+            if cls.__module__ == "__main__":
+                name = cls.__name__
+            else:
+                name = "%s.%s" % (cls.__module__, cls.__name__)
+            doc = cls.__doc__ and cls.__doc__.split("\n")[0] or ""
+            # desc = doc and '%s - %s' % (name, doc) or name
+            row = self.REPORT_CLASS_TMPL % dict(
+                style=ne > 0 and 'errorClass' or nf > 0 and 'failClass' or 'passClass',
+                name=name,
+                doc=doc,
+                count=np + nf + ne,
+                Pass=np,
+                fail=nf,
+                error=ne,
+                cid='c%s' % (len(self.number)),
+                time_usage=str(ns) + "秒"  # 单个用例耗时
+            )
+            self.rows.append(row)
+            for tid, (n, t, o, e, s) in enumerate(cls_results):
+
+                self._generate_report_test(self.rows, len(self.number), tid, n, t, o, e)
+        self.totle_count += current_result.success_count + current_result.failure_count + current_result.error_count
+        self.pass_count += current_result.success_count
+        self.fail_count += current_result.failure_count
+        self.error_count += current_result.error_count
+        self.failCase = current_result.failCase
+        self.errorCase = current_result.errorCase
+    def rows_to_report(self):
+        """每个case行数列数构造  tr   td构造"""
+        total = self.totle_count
+        sum_ns = round(self.sum_ns, 2)
+        report = self.REPORT_TMPL % dict(
+            test_list=''.join(self.rows),
+            count=str(total),
+            Pass=str(self.pass_count),
+            fail=str(self.fail_count),
+            error=str(self.error_count),
+            time_usage=str(sum_ns) + "秒",  # 所有用例耗时
+            passrate=str("%.2f%%" % (float(self.pass_count) / float(self.pass_count + self.fail_count + self.error_count) * 100)),
+        )
+        # 获取 通过、失败 和 错误 的统计并return，以用于饼图  -- Gelomen
+        Pass = str(self.pass_count)
+        fail = str(self.fail_count)
+        error = str(self.error_count)
+        return {"report": report, "Pass": Pass, "fail": fail, "error": error}
+
+    def getReportAttributes(self):
+        """
+        Return report attributes as a list of (name, value).
+        Override this to add custom attributes.
+        """
+        startTime = str(self.startTime)[:19]
+        duration = str(self.stopTime - self.startTime)
+        status = []
+        status.append('共 %s' % (self.pass_count + self.fail_count + self.error_count))
+        if self.pass_count:
+            status.append('通过 %s' % self.pass_count)
+        if self.fail_count:
+            status.append('失败 %s' % self.fail_count)
+        if self.error_count:
+            status.append('错误 %s' % self.error_count)
+        if status:
+            status = '，'.join(status)
+            if (self.pass_count + self.fail_count + self.error_count) > 0:
+                self.passrate = str("%.2f%%" % (float(self.pass_count) / float(self.pass_count + self.fail_count + self.error_count) * 100))
+            else:
+                self.passrate = "0.00 %"
+        else:
+            status = 'none'
+        if len(self.failCase) > 0:
+            failCase = self.failCase
+        else:
+            failCase = "无"
+        if len(self.errorCase) > 0:
+            errorCase = self.errorCase
+        else:
+            errorCase = "无"
+
+        return [
+            ('测试人员', self.DEFAULT_TESTER),
+            ('开始时间', startTime),
+            ('合计耗时', duration),
+            ('测试结果', status + "，通过率 = " + self.passrate),
+            ('失败用例合集', failCase),
+            ('错误用例合集', errorCase),
+        ]
+
+    def make_html(self):
+        """合并全部result 结果，输出到html"""
+        for yy in range(len(self.result_lst)):
+            # 重置这个计数器---解决合成的html，不能展开下属行问题
+            self.run_times = (yy + 1) * 1000
+
+            self.init_rows(self.result_lst[yy])
+        # 添加 通过、失败 和 错误 的统计，以用于饼图  -- Gelomen
+        Pass = self.rows_to_report()["Pass"]
+        fail = self.rows_to_report()["fail"]
+        error = self.rows_to_report()["error"]
+
+        report = self.rows_to_report()["report"]
+
+        # 顶部左上角按个 开始时间 + 耗时 + 状态
+        report_attrs = self.getReportAttributes()
+
+        heading = self._generate_heading(report_attrs)
+
+        # 版本
+        generator = 'HTMLTestRunner %s' % __version__
+        stylesheet = self.STYLESHEET_TMPL
+        # 结尾
+        ending = self.ENDING_TMPL
+        output = self.HTML_TMPL % dict(
+            title=saxutils.escape(self.DEFAULT_TITLE),
+            generator=generator,
+            stylesheet=stylesheet,
+            Pass=Pass,
+            fail=fail,
+            error=error,
+            heading=heading,
+            report=report,
+            ending=ending,
+        )
+        self.stream.write(output.encode('utf8'))
+        print("\n\033[36;0m--------------------- 测试结束 ---------------------\n"
+              "------------- 合计耗时: %s -------------\033[0m" % (self.stopTime - self.startTime), file=sys.stderr)
+
+
+
+
 
 
 ##############################################################################

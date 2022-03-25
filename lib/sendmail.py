@@ -40,7 +40,9 @@ def send_mail(file_new):
     print(report)
     msg = MIMEMultipart('related')
     msg.attach(att)
-    msgtext = MIMEText(mail_body,'html','utf-8')
+    # msgtext = MIMEText(mail_body,'html','utf-8')
+    # msg.attach(msgtext)
+    msgtext = MIMEText("结果见附件",'html','utf-8')
     msg.attach(msgtext)
     msg['Subject'] = SUBJECT
     msg['from'] = SENDER

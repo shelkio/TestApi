@@ -12,9 +12,10 @@ from lib.writeexcel import WriteExcel
 
 testData = ReadExcel(setting.SOURCE_FILE, "Sheet1").read_data()
 
+
 @ddt.ddt
 class Demo_API(unittest.TestCase):
-    """上上上"""
+    """接口测试"""
     def setUp(self):
         self.s = requests.session()
 
@@ -23,6 +24,7 @@ class Demo_API(unittest.TestCase):
 
     @ddt.data(*testData)
     def test_api(self,data):
+        """{}"""
         # 获取ID字段数值，截取结尾数字并去掉开头0
         rowNum = int(data['ID'].split("_")[2])
         print("******* 正在执行用例 ->{0} *********".format(data['ID']))
@@ -47,6 +49,7 @@ class Demo_API(unittest.TestCase):
             WriteExcel(setting.TARGET_FILE).write_data(rowNum + 1,NOT_data)
         self.assertEqual(self.result['code'], readData_code, "返回实际结果是->:%s" % self.result['code'])
         self.assertEqual(self.result['message'], readData_msg, "返回实际结果是->:%s" % self.result['message'])
+
 
 if __name__=='__main__':
     unittest.main()
