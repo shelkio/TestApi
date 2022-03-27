@@ -119,8 +119,8 @@ def sch_test2():
     threading.Thread(target=create_appointment1).start()
 
 
-schedule.every().day.at('12:31:00').do(sch_test1)  # 每天晚上八点执行
-schedule.every().day.at('12:31:00').do(sch_test2)  # 每天晚上八点执行
+schedule.every().day.at('11:59:58').do(sch_test1)  # 每天晚上八点执行
+schedule.every().day.at('11:59:58').do(sch_test2)  # 每天晚上八点执行
 
 while True:
     schedule.run_pending()  # 运行所有可运行的任
