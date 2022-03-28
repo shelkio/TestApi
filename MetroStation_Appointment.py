@@ -53,9 +53,9 @@ def get_balance():
     for i in a:
         str1 = i['timeSlotQueryString']
         str2 = str1.split('-')
-        stationName = str2[0]
-        enterDates = str2[1] + str2[2] + str2[3]
-        print('预约站名:' + stationName + '     预约日期时间:' + enterDates + '     剩余可预约数量:' + str(i['balance']) + "     当前时间:"
+        station_name = str2[0]
+        enter_dates = str2[1] + str2[2] + str2[3]
+        print('预约站名:' + station_name + '     预约日期时间:' + enter_dates + '     剩余可预约数量:' + str(i['balance']) + "     当前时间:"
               + time.strftime("%Y-%m-%d %H:%M:%S", time.localtime()))
 
 
@@ -78,8 +78,8 @@ def create_appointment():
             if a['stationEntrance'] is None:
                 print('预约1号失败'+'     当前时间:' + time.strftime("%Y-%m-%d %H:%M:%S", time.localtime()))
             else:
-                print('预约1号成功'+'     预约站名:' + parm['stationName'] + '     预约日期:' + parm['enterDate'] + '     预约时间段' + parm[
-                    'timeSlot'] + '     当前时间:' + time.strftime("%Y-%m-%d %H:%M:%S", time.localtime()))
+                print('预约1号成功'+'     预约站名:' + parm['stationName'] + '     预约日期:' + parm['enterDate'] + '     预约时间段'
+                      + parm['timeSlot'] + '     当前时间:' + time.strftime("%Y-%m-%d %H:%M:%S", time.localtime()))
                 break
         except Exception as e:
             print("Error %s:" % e)
@@ -105,15 +105,17 @@ def create_appointment1():
             if a['stationEntrance'] is None:
                 print('预约2号失败'+'     当前时间:' + time.strftime("%Y-%m-%d %H:%M:%S", time.localtime()))
             else:
-                print('预约2号成功'+'     预约站名:' + parm['stationName'] + '     预约日期:' + parm['enterDate'] + '     预约时间段' + parm[
-                    'timeSlot'] + '     当前时间:' + time.strftime("%Y-%m-%d %H:%M:%S", time.localtime()))
+                print('预约2号成功'+'     预约站名:' + parm['stationName'] + '     预约日期:' + parm['enterDate'] + '     预约时间段'
+                      + parm['timeSlot'] + '     当前时间:' + time.strftime("%Y-%m-%d %H:%M:%S", time.localtime()))
                 break
         except Exception as e:
             print("Error %s:" % e)
         time.sleep(1)
 
+
 def sch_test1():
     threading.Thread(target=create_appointment).start()
+
 
 def sch_test2():
     threading.Thread(target=create_appointment1).start()
